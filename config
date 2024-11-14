@@ -1,0 +1,8 @@
+#!/bin/bash
+
+optDir="/media/hlajungo/D/linux/opt"
+mfDir="/opt/apps/modulefiles"
+
+
+CORE_NUM=$(( $(nproc) -1 ))
+
