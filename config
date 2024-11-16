@@ -1,6 +1,6 @@
 #!/bin/bash
 
-optDir="/media/hlajungo/D/linux/opt"
+optDir="/opt"
 mfDir="/opt/apps/modulefiles"
 
 

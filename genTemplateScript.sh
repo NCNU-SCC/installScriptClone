@@ -37,13 +37,14 @@ INSTALLPATH="\$optDir/\$package/\$version"
 
 MF="\$mfDir/Core/\$package/\$version.lua"
 
-MFText=" \\
-family("Compiler") \\
-prepend_path ("MODULEPATH", pathJoin (mfroot, "Compiler", package)) \\
-prepend_path ("MODULEPATH", pathJoin (mfroot, "MPI", package)) \\
+
+MFText="\
+family(\"Compiler\")
+prepend_path (\"MODULEPATH\", pathJoin (mfroot, \"Compiler\", package))
+prepend_path (\"MODULEPATH\", pathJoin (mfroot, \"MPI\", package))
 "
 
-// (For copy)
+# (For copy)
 # family("Compiler")
 # (For copy)
 # mkdir -p \$MODULEPATH_ROOT/Compiler/\$package/\$version
@@ -200,7 +201,7 @@ hyphen_crawlConfigHelp()
   ./configure --help | grep "\-\-ld" >> \$tmp
 
   cat \$tmp
-  rm \$tmp
+  sudo rm \$tmp
 
   color bright_green "crawl finished."
 }
@@ -215,13 +216,13 @@ hyphen_doWget()
   color green "wget \$URL"
 
   # 如果存在之前 unzip 之後的殘餘，刪掉
-  rm -r \$DIRNAME
+  sudo rm -r \$DIRNAME
   color green "remove \$DIRNAME"
 
   bsdtar -xf \$URLFILE || { echo "Extraction failed"; exit 1; }
   color green "Unzip \$URLFILE"
 
-  rm "\$URLFILE"
+  sudo rm "\$URLFILE"
   color green "remove \$URLFILE"
 
  color bright_green "wget \$URL successed."
@@ -295,15 +296,15 @@ LIBRARY_PATH=\$(echo "\$LIBRARY_PATH" | sed 's/::/:/g; s/:$//; s/^://')
 
 ########## INSTALL PATH CHECK ##########
 
-mkdir -p \$INSTALLPATH
+sudo mkdir -p \$INSTALLPATH
 
 if [ "\$(ls -A \$INSTALLPATH)" ]; then
   # User Input
   read -p "\$(color red 'INSTALLPATH:') \$(color blue \$INSTALLPATH) \$(color red 'is not empty. Delete its contents?') (y/yes to confirm) " confirmation
 
   if [[ "\$confirmation" =~ ^(y|Y|yes|Yes)$ ]]; then
-    echo " \$(color green 'Deleting contents of') \$(color blue '\$INSTALLPATH')"
-    rm -rf \$INSTALLPATH/*
+    echo "\$(color green 'Deleting contents of') \$(color blue '\$INSTALLPATH')"
+    sudo rm -rf \$INSTALLPATH/*
   else
     color green "Deletion aborted, continue."
   fi
@@ -323,7 +324,7 @@ fi
 
 cd \$DIRNAME
 color green "cd \$DIRNAME"
-mkdir -p build
+sudo mkdir -p build
 color green "mkdir build"
 cd build/
 color green "cd build"
@@ -334,7 +335,7 @@ color green "cd build"
 # -fno-rtti -mavx2, -mfma, -msse4.2
 # -ffunction-sections, -fdata-sections
 
-eval sudo -E \$CONFIGURE_CMD > configure.log 2>&1
+eval sudo -E \$CONFIGURE_CMD 2>&1 | sudo tee configure.log > /dev/null
 
 echo "########## Keyword Detected ##########"
 ## ERR
@@ -351,7 +352,7 @@ fi
 
 echo "Configure log written to \$(color blue "\$(pwd)/configure.log")"
 
-sudo -E make -j\$(nproc) > make.log 2>&1
+sudo -E make -j\$(nproc) 2>&1 | sudo tee make.log > /dev/null
 
 ## ERR
 ret=\$?
@@ -364,7 +365,7 @@ fi
 
 echo "Make log written to \$(color blue "\$(pwd)/make.log")"
 
-sudo -E make install -j\$(nproc) > install.log 2>&1
+sudo -E make install -j\$(nproc) 2>&1 | sudo tee install.log > /dev/null
 
 ## ERR
 ret=\$?
@@ -382,27 +383,25 @@ echo ""
 
 ########## Modulefile Template ##########
 
-mkdir -p \$(dirname \$MF)
->\$MF
-
+sudo mkdir -p \$(dirname \$MF)
 packageHOME="\${package}HOME"
 
-echo "local root = \\"\$INSTALLPATH\\"" > \$MF
-echo "local package = \\\$package/\$version"
-echo "local mfroot = os.getenv ("MODULEPATH_ROOT")"
-echo "" >> \$MF
+
+echo "local root = \\"\$INSTALLPATH\\"" | sudo tee "\$MF" > /dev/null
+echo "local package = \\"\$package/\$version\\"" | sudo tee -a "\$MF" > /dev/null
+echo "local mfroot = os.getenv (\\"MODULEPATH_ROOT\\")" | sudo tee -a "\$MF" > /dev/null
+echo "" | sudo tee -a "\$MF" > /dev/null
+
 
 for dep in \${DEP[@]}
 do
   depName=\$(echo "\$dep" | cut -d'-' -f1)
   depVersion=\$(echo "\$dep" | cut -d'-' -f2)
 
-  echo "depends_on(\"\$depName/\$depVersion\")" >> \$MF
-
+  echo "depends_on(\\"\$depName/\$depVersion\\")" | sudo tee -a "\$MF" > /dev/null
 done
 
-cat <<EOF >> \$MF
-
+cat <<EOF | sudo tee -a "\$MF" > /dev/null
 -- all path prepend --
 prepend_path("\$packageHOME", root)
 prepend_path("PATH", pathJoin(root, "bin"))

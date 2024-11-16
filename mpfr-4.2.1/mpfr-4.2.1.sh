@@ -11,22 +11,55 @@ version=$(echo $BASE | cut -d'-' -f2)
 
 ########## Setting by User ##########
 
-# Need to modify 1 : URL
 URL="https://www.mpfr.org/mpfr-current/mpfr-4.2.1.tar.xz"
-
-# Need to modify 2 : Dependence (module file)
 DEP=("gmp-6.2.1")
-
-# Need to modify 3 : Install Dir
 INSTALLPATH="$optDir/$package/$version"
 
-
-# Need to modify 4 : Module file Dir
 MF="$mfDir/Core/$package/$version.lua"
 
-# Need to modify 5 : configure options
 
-OPT_FLAGS="-O3 -march=native -mtune=native -flto -pipe -ffast-math -funroll-loops"
+
+# (For copy)
+# family("Compiler")
+# (For copy)
+# mkdir -p $MODULEPATH_ROOT/Compiler/$package/$version
+
+########## configure options ##########
+
+# 對於 gcc/g++ 的優化選項: 請查看 https://gcc.gnu.org/onlinedocs/gcc-10.2.0/gcc/Optimize-Options.html#Optimize-Options
+
+# General
+#OPT_FLAGS+=" -O3"                # 最佳化等級3，激進的優化
+OPT_FLAGS+=" -Ofast"             # 啟動所有優化，無視嚴格的標準合規性
+OPT_FLAGS+=" -funroll-loops"     # 展開迴圈來減少迴圈計數開銷，提高效能
+OPT_FLAGS+=" -fprefetch-loop-arrays"    # 開啟陣列預取優化，在迴圈中預取陣列數據，提高記憶體訪問效率 (或更差，取決於程式)
+
+# 分次編譯 (兩次 configure)
+#OPT_FLAGS+=" -fprofile-generate"      # 執行一次程式以收集執行資料
+#OPT_FLAGS+=" -fprofile-use=$(pwd)"   # 利用收集的資料進行優化
+
+
+# CPU Specify
+OPT_FLAGS+=" -march=native"      # 使用本地CPU架構指令集進行最佳化
+OPT_FLAGS+=" -mtune=native"             # 調整編譯選項以最佳化當前CPU
+OPT_FLAGS+=" -mfpmath=sse"              # 使用SSE指令集加速浮點運算（對於支持的CPU）
+OPT_FLAGS+=" -mavx"                     # 開啟AVX指令集，適用於支援AVX的CPU，可顯著加速浮點數運算
+OPT_FLAGS+=" -mavx2"                    # 開啟AVX2指令集，加速矢量運算
+OPT_FLAGS+=" -mprefer-vector-width=256" # 優先使用256位的矢量寬度，提高矢量化效率
+
+# LTO
+#OPT_FLAGS+=" -fno-lto"                         # 禁用LTO，可用於排除LTO引起的潛在問題，例如: __gttf2@@GCC_4.3.0
+# error example: https://aur.archlinux.org/pkgbase/gcc7
+#OPT_FLAGS+=" -fwhole-program"                  # 啟用全局變數鏈接時間優化。This option should not be used in combination with -flto. Instead relying on a linker plugin should provide safer and more precise information.
+
+OPT_FLAGS+=" -flto=auto"                        # the standard link-time optimizer
+OPT_FLAGS+=" -fuse-linker-plugin"               # 使用鏈接器插件，能使LTO在鏈接階段進行更多優化。不可用時， -fwhole-program 應該使用。
+#OPT_FLAGS+=" -flto-partition=one"              # 單一分區的LTO，有助於減少LTO的內存佔用
+
+# Others
+OPT_FLAGS+=" -fno-plt"           # 不使用程序鏈接表（PLT）對動態鏈接庫的函數進行直接調用，提高函數調用效率
+OPT_FLAGS+=" -pipe"              # 使用管道加速編譯步驟間的數據傳遞
+
 CC="gcc"
 CXX="g++"
 FC="gfortran"
@@ -38,7 +71,13 @@ CONFIGURE_CMD="../configure \
     CFLAGS=\"$OPT_FLAGS\" \
     CXXFLAGS=\"$OPT_FLAGS\" \
     FFLAGS=\"$OPT_FLAGS\" \
+    --with-gmp-prefix=$gmpHOME \
     --prefix=$INSTALLPATH"
+
+
+
+
+
 
 ########## More Variable ##########
 
@@ -102,7 +141,7 @@ hyphen_h()
 hyphen_crawlConfigHelp()
 {
   if [[ ! -d "$DIRNAME" ]]; then
-  color bright_red "$DIRNAME doesn't exist."
+  color red "$DIRNAME doesn't exist."
   exit 1
   fi
   cd $DIRNAME
@@ -138,34 +177,32 @@ hyphen_crawlConfigHelp()
   ./configure --help | grep "\-\-ld" >> $tmp
 
   cat $tmp
-  rm $tmp
+  sudo rm $tmp
 
   color bright_green "crawl finished."
 }
-
 
 hyphen_doWget()
 {
   wget -q $URL
   if [[ ! -f "$URLFILE" ]]; then
-    color bright_red "Error: Download failed for $URLFILE."
+    color red "Error: Download failed for $URLFILE."
     exit 1
   fi
-  color bright_blue "wget $URL"
+  color green "wget $URL"
 
   # 如果存在之前 unzip 之後的殘餘，刪掉
-  rm -r $DIRNAME
-  color bright_blue "remove $DIRNAME"
+  sudo rm -r $DIRNAME
+  color green "remove $DIRNAME"
 
   bsdtar -xf $URLFILE || { echo "Extraction failed"; exit 1; }
-  color bright_blue "Unzip $URLFILE"
+  color green "Unzip $URLFILE"
 
-  rm "$URLFILE"
-  color bright_blue "remove $URLFILE"
+  sudo rm "$URLFILE"
+  color green "remove $URLFILE"
 
  color bright_green "wget $URL successed."
 }
-
 
 ########## Arguments Setting ##########
 
@@ -181,11 +218,9 @@ help,crawlConfigHelp,doWget\
 
 
 if [ $? != 0 ]; then
-    color bright_red "Inavild options!" >&2
+    color red "Inavild options!" >&2
     exit 1
 fi
-
-
 
 eval set -- "$ARGS"
 
@@ -208,12 +243,11 @@ while true; do
     break
     ;;
   *)
-    color bright_red "Inavild options!" >&2
+    color red "Inavild options!" >&2
     exit 1
     ;;
   esac
 done
-
 
 ########## LOAD MODULE ##########
 
@@ -223,50 +257,53 @@ do
   depVersion=$(echo "$dep" | cut -d'-' -f2)
 
 if ! module load $depName/$depVersion ; then
-    color bright_red "Error: Failed to load $dep"
+    color red "Error: Failed to load $dep"
     exit 1
 fi
 done
 
 color bright_green "Module loaded successed."
 
+########## Modify Env Variable ##########
+
+# gcc 會抱怨 . (::) 出現在 LIBRARY_PATH 中，此命令去除這個問題。
+LIBRARY_PATH=$(echo "$LIBRARY_PATH" | sed 's/::/:/g; s/:$//; s/^://')
+
+
 ########## INSTALL PATH CHECK ##########
 
-mkdir -p $INSTALLPATH
+sudo mkdir -p $INSTALLPATH
 
 if [ "$(ls -A $INSTALLPATH)" ]; then
   # User Input
-  read -p "$(color bright_red 'INSTALLPATH:') $INSTALLPATH $(color bright_red 'is not empty. Delete its contents?') (y/yes to confirm) " confirmation
+  read -p "$(color red 'INSTALLPATH:') $(color blue $INSTALLPATH) $(color red 'is not empty. Delete its contents?') (y/yes to confirm) " confirmation
 
   if [[ "$confirmation" =~ ^(y|Y|yes|Yes)$ ]]; then
-    color bright_blue "Deleting contents of $INSTALLPATH..."
-    rm -rf $INSTALLPATH/*
+    echo "$(color green 'Deleting contents of') $(color blue '$INSTALLPATH')"
+    sudo rm -rf $INSTALLPATH/*
   else
-    color bright_blue "Deletion aborted, continue."
+    color green "Deletion aborted, continue."
   fi
 else
-  color bright_blue "$INSTALLPATH is empty. No deletion needed."
+  echo "$(color blue '$INSTALLPATH') $(color green 'is empty. No deletion needed.')"
 fi
 
 ########## MODULE FILE ##########
 
-mkdir -p $(dirname $MF)
->$MF
 
 ########## INSTALL ##########
 
 if [[ ! -d "$DIRNAME" ]]; then
-  color bright_red "$DIRNAME doesn't exist."
+  color red "$DIRNAME doesn't exist."
   exit 1
 fi
 
-
 cd $DIRNAME
-color bright_blue "cd $DIRNAME"
-mkdir -p build
-color bright_blue "mkdir build"
+color green "cd $DIRNAME"
+sudo mkdir -p build
+color green "mkdir build"
 cd build/
-color bright_blue "cd build"
+color green "cd build"
 
 # -ftree-vectorize
 # -fomit-frame-pointer
@@ -274,7 +311,7 @@ color bright_blue "cd build"
 # -fno-rtti -mavx2, -mfma, -msse4.2
 # -ffunction-sections, -fdata-sections
 
-eval $CONFIGURE_CMD > configure.log 2>&1
+eval sudo -E $CONFIGURE_CMD 2>&1 | sudo tee configure.log > /dev/null
 
 echo "########## Keyword Detected ##########"
 ## ERR
@@ -282,73 +319,74 @@ ret=$?
 echo "$(grep --color=never "error" configure.log | sed 's/error/\x1b[31m&\x1b[0m/g')"
 echo "$(grep --color=never "require" configure.log | sed 's/require/\x1b[31m&\x1b[0m/g')"
 echo "$(grep --color=never "missing" configure.log | sed 's/missing/\x1b[31m&\x1b[0m/g')"
-echo "$(grep --color=never "warning" configure.log | sed 's/warning/\x1b[33m&\x1b[0m/g')"
+echo "$(grep --color=never "warning" configure.log | sed 's/warning/\x1b[31m&\x1b[0m/g')"
 if [ $ret -ne 0 ]; then
-  color bright_red "Error: Configure failed"
-  echo "Configure log written to $(color bright_white "$(pwd)/configure.log")"
+  color red "Error: Configure failed"
+  echo "Configure log written to $(color blue "$(pwd)/configure.log")"
   exit 1
 fi
 
-echo "Configure log written to $(color bright_white "$(pwd)/configure.log")"
+echo "Configure log written to $(color blue "$(pwd)/configure.log")"
 
-
-make -j$(nproc) > make.log 2>&1
+sudo -E make -j$(nproc) 2>&1 | sudo tee make.log > /dev/null
 
 ## ERR
 ret=$?
 echo "$(grep --color=never "error" make.log | sed 's/error/\x1b[31m&\x1b[0m/g')"
 if [ $ret -ne 0 ]; then
-  color bright_red "Error: Make failed"
-  echo "Make log written to $(color bright_white "$(pwd)/make.log")"
+  color red "Error: Make failed"
+  echo "Make log written to $(color blue "$(pwd)/make.log")"
   exit 1
 fi
 
-echo "Make log written to $(color bright_white "$(pwd)/make.log")"
+echo "Make log written to $(color blue "$(pwd)/make.log")"
 
-make install -j$(nproc) > install.log 2>&1
+sudo -E make install -j$(nproc) 2>&1 | sudo tee install.log > /dev/null
 
 ## ERR
 ret=$?
-echo "$(grep "error" "install.log" )"
+echo "$(grep --color=never "error" install.log | sed 's/error/\x1b[31m&\x1b[0m/g')"
 if [ $? -ne 0 ]; then
-    color bright_red "Error: Make install failed"
-    echo "Install log written to $(color bright_white "$(pwd)/install.log")"
+    color red "Error: Make install failed"
+    echo "Install log written to $(color blue "$(pwd)/install.log")"
     exit 1
 fi
 
-echo "Install log written to $(color bright_white "$(pwd)/install.log" )"
+echo "Install log written to $(color blue "$(pwd)/install.log" )"
 echo ""
-echo "Install at $INSTALLPATH"
+echo "Install at $(color blue $INSTALLPATH)"
 echo ""
-
-
-
-
 
 ########## Modulefile Template ##########
+
+sudo mkdir -p $(dirname $MF)
 packageHOME="${package}HOME"
 
-echo "local root = \"$INSTALLPATH\"" > $MF
-echo "" >> $MF
+
+echo "local root = \"$INSTALLPATH\"" | sudo tee "$MF" > /dev/null
+echo "local package = \"$package/$version\"" | sudo tee -a "$MF" > /dev/null
+echo "local mfroot = os.getenv (\"MODULEPATH_ROOT\")" | sudo tee -a "$MF" > /dev/null
+echo "" | sudo tee -a "$MF" > /dev/null
+
 
 for dep in ${DEP[@]}
 do
   depName=$(echo "$dep" | cut -d'-' -f1)
   depVersion=$(echo "$dep" | cut -d'-' -f2)
 
-  echo "depends_on(\"$depName/$depVersion\")" >> $MF
-
+  echo "depends_on(\"$depName/$depVersion\")" | sudo tee -a "$MF" > /dev/null
 done
 
-cat <<EOF >> $MF
-
+cat <<EOF | sudo tee -a "$MF" > /dev/null
 -- all path prepend --
 prepend_path("$packageHOME", root)
 prepend_path("PATH", pathJoin(root, "bin"))
+prepend_path("PATH", pathJoin(root, "libexec"))
 prepend_path("LD_LIBRARY_PATH", pathJoin(root, "lib"))
 prepend_path("LD_LIBRARY_PATH", pathJoin(root, "lib64"))
 prepend_path("C_INCLUDE_PATH", pathJoin(root, "include"))
 prepend_path("CPLUS_INCLUDE_PATH", pathJoin(root, "include"))
+prepend_path("LIBRARY_PATH", pathJoin(root, "libexec"))
 prepend_path("LIBRARY_PATH", pathJoin(root, "lib"))
 prepend_path("LIBRARY_PATH", pathJoin(root, "lib64"))
 prepend_path("MANPATH", pathJoin(root, "share/man"))
@@ -357,6 +395,8 @@ prepend_path("ACLOCAL_PATH", pathJoin(root, "share/aclocal"))
 prepend_path("PKG_CONFIG_PATH", pathJoin(root, "lib/pkgconfig"))
 prepend_path("PKG_CONFIG_PATH", pathJoin(root, "lib64/pkgconfig"))
 prepend_path("CMAKE_PREFIX_PATH", root)
+
+$MFText
 
 if (mode() == "load") then
    io.stderr:write(myModuleFullName() .. " loaded\n")
@@ -367,7 +407,7 @@ if (mode() == "unload") then
 end
 EOF
 
-echo "Module file written to $MF"
+echo "Module file written to $(color blue "$MF")"
 color bright_green "Install successed."
 
 
