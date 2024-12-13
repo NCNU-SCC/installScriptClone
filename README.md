@@ -25,10 +25,3 @@ It will get source code from `URL`.
 `configure options` already has some optimization parameters
 
 After modification, run `./gmp-6.2.1/gmp-6.2.1.sh`.
-
-## Contribution
-
-
-
-
-# installScriptClone
